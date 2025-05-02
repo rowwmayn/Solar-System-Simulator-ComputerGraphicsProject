@@ -1,7 +1,7 @@
 from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
-import math
+import math,random
 
 # Camera variables
 camera_pos = (0, 0, 1500)
@@ -11,120 +11,13 @@ fovY = 60
 GRID_LENGTH = 4000
 
 # Simulation variables
+simulation_time = 0.0  # Tracks total elapsed time in secon
 paused = False
 time_scale = 1.0
 selected_planet = 0
 follow_mode = False
 show_trails = True
 inner_planets_only = False
-
-planet_info = [
-    # Sun
-    ["The Sun is our star and the center of our solar system.",
-     "Diameter: 1,392,000 km (109x Earth)",
-     "Surface Temperature: ~5,500°C",
-     "Age: ~4.6 billion years",
-     "Contains 99.8% of the solar system's mass"],
-    
-    # Mercury
-    ["Mercury is the smallest and innermost planet.",
-     "Diameter: 4,879 km (0.38x Earth)",
-     "Day length: 59 Earth days",
-     "Year length: 88 Earth days",
-     "Surface temperature ranges from -173°C to 427°C"],
-    
-    # Venus
-    ["Venus is the hottest planet due to greenhouse effect.",
-     "Diameter: 12,104 km (0.95x Earth)",
-     "Day length: 243 Earth days (longer than its year!)",
-     "Year length: 225 Earth days",
-     "Surface temperature: ~462°C constantly"],
-    
-    # Earth
-    ["Earth is the only known planet with liquid water and life.",
-     "Diameter: 12,756 km",
-     "Day length: 24 hours",
-     "Year length: 365.25 days",
-     "Average surface temperature: 15°C"],
-    
-    # Mars
-    ["Mars is known as the Red Planet due to iron oxide.",
-     "Diameter: 6,792 km (0.53x Earth)",
-     "Day length: 24.6 hours",
-     "Year length: 687 Earth days",
-     "Has the largest volcano in the solar system: Olympus Mons"],
-    
-    # Jupiter
-    ["Jupiter is the largest planet in our solar system.",
-     "Diameter: 139,820 km (11x Earth)",
-     "Day length: 9.9 hours",
-     "Year length: 11.9 Earth years",
-     "Has the Great Red Spot, a storm raging for 400+ years"],
-    
-    # Saturn
-    ["Saturn is famous for its spectacular ring system.",
-     "Diameter: 116,460 km (9.1x Earth)",
-     "Day length: 10.7 hours",
-     "Year length: 29.5 Earth years",
-     "Has at least 82 moons, including Titan with its own atmosphere"],
-    
-    # Uranus
-    ["Uranus rotates on its side with an axial tilt of 98 degrees.",
-     "Diameter: 50,724 km (4x Earth)",
-     "Day length: 17.2 hours",
-     "Year length: 84 Earth years",
-     "Appears blue-green due to methane in its atmosphere"],
-    
-    # Neptune
-    ["Neptune is the windiest planet with speeds up to 2,100 km/h.",
-     "Diameter: 49,244 km (3.9x Earth)",
-     "Day length: 16.1 hours",
-     "Year length: 165 Earth years",
-     "Has the Great Dark Spot, a storm similar to Jupiter's"]
-]
-
-# Add this function to your code
-
-def draw_planet_info(planet_idx):
-    """Display educational information about the selected planet"""
-    if 0 <= planet_idx < len(planet_info):
-        y_position = 750  # Starting position for the first line
-        x_position = 600  # Right side of the screen
-        
-        # Draw a semi-transparent background for better readability
-        glColor4f(0.0, 0.0, 0.2, 0.7)  # Dark blue with alpha
-        glMatrixMode(GL_PROJECTION)
-        glPushMatrix()
-        glLoadIdentity()
-        gluOrtho2D(0, 1000, 0, 800)
-        glMatrixMode(GL_MODELVIEW)
-        glPushMatrix()
-        glLoadIdentity()
-        
-        glEnable(GL_BLEND)
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        
-        glBegin(GL_QUADS)
-        glVertex2f(x_position, y_position + 20)
-        glVertex2f(x_position + 390, y_position + 20)
-        glVertex2f(x_position + 390, y_position - 100)
-        glVertex2f(x_position, y_position - 100)
-        glEnd()
-        
-        glDisable(GL_BLEND)
-        
-        glPopMatrix()
-        glMatrixMode(GL_PROJECTION)
-        glPopMatrix()
-        glMatrixMode(GL_MODELVIEW)
-        
-        # Draw each line of information
-        for info in planet_info[planet_idx]:
-            draw_text(x_position + 10, y_position, info)
-            y_position -= 20  # Move down for the next line
-
-
-
 
 # Planet data (your colors and parameters)
 planet_data = [
@@ -166,6 +59,7 @@ rogue_asteroid_size = 30
 collision_happened = False
 collision_time = 0
 collision_target = 3  # Earth by default
+explosion_particles = []   # list of tuples: (x,y,z, vx,vy,vz, birth_time)
 
 # Animation state
 trail_segments = 100
@@ -231,281 +125,153 @@ def draw_trails():
 
 def draw_sphere(radius, slices, stacks):
     gluSphere(gluNewQuadric(), radius, slices, stacks)
-
-# Replace the existing draw_circle function with this barebones version
-def draw_circle(radius, segments, r, g, b):
-    """
-    Draw a simple circle using GL_LINE_STRIP
-    """
-    glColor3f(r, g, b)
-    glBegin(GL_LINE_STRIP)
-    
-    # Add one extra point to close the circle
-    for i in range(segments + 1):
-        angle = 2.0 * math.pi * i / segments
-        glVertex3f(radius * math.cos(angle), radius * math.sin(angle), 0)
-    
-    glEnd()
-
-# Replace the draw_concentric_circles function with this simplified version
-def draw_concentric_circles(inner_radius, outer_radius, num_circles, segments, base_color):
-    """
-    Draw multiple concentric circles to represent a disk or ring
-    """
-    r_base, g_base, b_base = base_color
-    
-    # Draw multiple circles
-    for i in range(num_circles):
-        t = i / (num_circles - 1)  # 0 to 1
-        radius = inner_radius + t * (outer_radius - inner_radius)
-        
-        # Slight color variation
-        if i % 3 == 0:
-            r, g, b = r_base * 1.1, g_base * 1.1, b_base * 1.1
-        elif i % 3 == 1:
-            r, g, b = r_base, g_base, b_base
-        else:
-            r, g, b = r_base * 0.9, g_base * 0.9, b_base * 0.9
-            
-        draw_circle(radius, segments, r, g, b)
-
-# Modify or replace the draw_planet function (just the parts that use gluDisk)
-# For example, replace this part in Saturn's section
-def draw_saturn_rings(radius):
-    # Saturn's iconic rings - using simple circles
-    glPushMatrix()
-    glRotatef(80, 1, 0, 0)  # Tilt the rings
-    
-    # Set line width for the rings
-    glLineWidth(1.0)
-    
-    # Inner ring (darker)
-    draw_concentric_circles(radius * 1.2, radius * 1.8, 20, 64, (0.8, 0.7, 0.5))
-    
-    # Middle ring (brighter)
-    draw_concentric_circles(radius * 1.9, radius * 2.2, 15, 64, (0.9, 0.85, 0.7))
-    
-    # Outer ring (darker)
-    draw_concentric_circles(radius * 2.3, radius * 2.5, 10, 64, (0.75, 0.7, 0.6))
-    
-    # Add some cross lines to create more detail
-    draw_ring_crosslines(radius * 1.2, radius * 2.5, 16)
-    
-    glPopMatrix()
-
-# Replacement for places where Earth's polar caps were drawn with gluDisk
-def draw_polar_cap(radius, cap_size):
-    segments = 32
-    glBegin(GL_TRIANGLE_FAN)
-    glVertex3f(0, 0, 0)  # Center point
-    for i in range(segments + 1):
-        angle = 2.0 * math.pi * i / segments
-        glVertex3f(radius * cap_size * math.cos(angle), 
-                   radius * cap_size * math.sin(angle), 
-                   0)
-    glEnd()
-
-# Function to modify parts of draw_planet that used gluDisk
-def draw_earth_polar_caps(radius):
-    # North pole
-    glPushMatrix()
-    glRotatef(90, 1, 0, 0)
-    glColor3f(0.9, 0.95, 1.0)
-    draw_polar_cap(radius, 0.2)
-    glPopMatrix()
-    
-    # South pole
-    glPushMatrix()
-    glRotatef(-90, 1, 0, 0)
-    glColor3f(0.9, 0.95, 1.0)
-    draw_polar_cap(radius, 0.25)
-    glPopMatrix()
-
+# First, let's fix the draw_planet function to properly handle matrix operations
 def draw_planet(planet_idx, radius, rotation_angle, axial_tilt):
     glPushMatrix()
     glRotatef(axial_tilt, 0, 1, 0)
     glRotatef(rotation_angle, 0, 0, 1)
-    
-    # Base planet sphere
     glColor3fv(planet_data[planet_idx][5])
     gluSphere(gluNewQuadric(), radius, 32, 32)
     
-    # Add surface features based on planet type
-    if planet_idx == 1:  # Mercury - add craters
-        add_surface_features(radius, [(45, 20), (-30, 80), (10, 150), (60, 270)], 0.15, (0.7, 0.55, 0.55))
-    
-    elif planet_idx == 2:  # Venus - add cloud swirls
-        add_cloud_layers(radius, 3, (1.0, 1.0, 0.8))
-    
-    elif planet_idx == 3:  # Earth - add continents and polar caps
-        # Add polar caps with simplified method
-        draw_earth_polar_caps(radius)
-        
-        # Add continent-like features
-        add_surface_features(radius, [(10, 30), (-20, 150), (40, 270)], 0.4, (0.2, 0.7, 0.2))
-    
-    elif planet_idx == 4:  # Mars - add dark regions and polar caps
-        # Add polar cap with simplified method
-        glPushMatrix()
-        glRotatef(90, 1, 0, 0)
-        glColor3f(0.9, 0.9, 0.9)
-        draw_polar_cap(radius, 0.15)
-        glPopMatrix()
-        
-        # Dark surface features
-        add_surface_features(radius, [(30, 45), (-25, 160), (15, 270)], 0.5, (0.6, 0.25, 0.2))
-    
-    elif planet_idx == 5:  # Jupiter - add colored bands
-        # Jupiter's iconic bands
-        bands = 8
+    # Gas giant bands (Jupiter/Saturn)
+    if planet_idx in (5, 6):
+        bands = 6 if planet_idx == 5 else 4
         for b in range(bands):
-            offset = radius * 0.02  # Slight offset for visibility
-            band_radius = radius + offset - (b * offset * 2 / bands)
-            # Alternate between darker and lighter bands
-            if b % 2 == 0:
-                glColor3f(0.95, 0.8, 0.6)
-            else:
-                glColor3f(0.8, 0.7, 0.5)
-            
-            glPushMatrix()
-            # Draw a thin cylinder for each band
-            glRotatef(90, 1, 0, 0)
-            bottom = -radius * (0.5 - b/bands)
-            top = -radius * (0.5 - (b+1)/bands)
-            height = top - bottom
-            gluCylinder(gluNewQuadric(), band_radius, band_radius, height, 32, 1)
-            glPopMatrix()
+            band_radius = radius * (1.0 + 0.02 * ((b + 1) / float(bands + 1)))
+            base = planet_data[planet_idx][5]
+            shade = 0.8 if (b % 2 == 0) else 1.0
+            glColor3f(min(base[0]*shade,1), min(base[1]*shade,1), min(base[2]*shade,1))
+            gluSphere(gluNewQuadric(), band_radius, 32, 32)
+    
+    # Draw rings for Saturn
+    if planet_idx == 6:  # Saturn
+        inner_radius = radius * 1.3
+        outer_radius = radius * 2.2
+        ring_count = 15
         
-        # Add the Great Red Spot
+        # Draw a series of concentric circles for the rings
+        for i in range(ring_count):
+            r = inner_radius + (outer_radius - inner_radius) * i / (ring_count - 1)
+            
+            # Alternate ring colors
+            shade = 0.7 if i % 2 == 0 else 0.9
+            base = planet_data[planet_idx][5]
+            glColor3f(min(base[0]*shade, 1), min(base[1]*shade, 1), min(base[2]*shade, 1))
+            
+            # Draw ring as a circle of line segments
+            glBegin(GL_LINE_LOOP)
+            segments = 50
+            for j in range(segments):
+                angle = 2.0 * math.pi * j / segments
+                x = r * math.cos(angle)
+                y = r * math.sin(angle)
+                # Flatten the ring on the x-y plane
+                glVertex3f(x, y, 0)
+            glEnd()
+    
+    # Add rings for Uranus (tilted)
+    if planet_idx == 7:  # Uranus
+        inner_radius = radius * 1.2
+        outer_radius = radius * 1.8
+        ring_count = 8
+        
+        # Save the current matrix state before additional rotation
         glPushMatrix()
-        glRotatef(40, 0, 1, 0)
-        glTranslatef(radius*0.98, 0, 0)
-        glColor3f(0.9, 0.4, 0.3)
-        gluSphere(gluNewQuadric(), radius*0.2, 16, 16)
+        
+        # The rings of Uranus are nearly perpendicular to its orbit
+        glRotatef(90, 1, 0, 0)  # Rotate to position rings perpendicular
+        
+        for i in range(ring_count):
+            r = inner_radius + (outer_radius - inner_radius) * i / (ring_count - 1)
+            
+            # Uranus has fainter rings
+            shade = 0.3 + 0.1 * (i % 3)
+            glColor3f(shade, shade, shade)
+            
+            glBegin(GL_LINE_LOOP)
+            segments = 40
+            for j in range(segments):
+                angle = 2.0 * math.pi * j / segments
+                x = r * math.cos(angle)
+                y = r * math.sin(angle)
+                glVertex3f(x, y, 0)
+            glEnd()
+        
+        # Restore matrix state after drawing rings
         glPopMatrix()
     
-    elif planet_idx == 6:  # Saturn - add rings
-        # Saturn's bands
-        bands = 6
-        for b in range(bands):
-            offset = radius * 0.01
-            band_radius = radius + offset - (b * offset * 2 / bands)
-            if b % 2 == 0:
-                glColor3f(0.95, 0.9, 0.7)
-            else:
-                glColor3f(0.85, 0.8, 0.6)
-            
-            glPushMatrix()
-            glRotatef(90, 1, 0, 0)
-            bottom = -radius * (0.5 - b/bands)
-            top = -radius * (0.5 - (b+1)/bands)
-            height = top - bottom
-            gluCylinder(gluNewQuadric(), band_radius, band_radius, height, 32, 1)
-            glPopMatrix()
+    # Add rings for Neptune (subtle)
+    if planet_idx == 8:  # Neptune
+        inner_radius = radius * 1.1
+        outer_radius = radius * 1.5
+        ring_count = 5
         
-        # Draw Saturn's rings with simplified method
-        draw_saturn_rings(radius)
-    
-    elif planet_idx == 7:  # Uranus - add ring and blue-green bands
-        # Uranian bands
-        for b in range(4):
-            band_radius = radius * (1.0 + 0.02 * (b / 4.0))
-            # Subtle color variations
-            if b % 2 == 0:
-                glColor3f(0.5, 0.8, 0.9)
-            else:
-                glColor3f(0.6, 0.7, 0.8)
+        for i in range(ring_count):
+            r = inner_radius + (outer_radius - inner_radius) * i / (ring_count - 1)
             
-            glPushMatrix()
-            glRotatef(90, 1, 0, 0)
-            bottom = -radius * (0.5 - b/4)
-            top = -radius * (0.5 - (b+1)/4)
-            height = top - bottom
-            gluCylinder(gluNewQuadric(), band_radius, band_radius, height, 32, 1)
-            glPopMatrix()
-        
-        # Uranus' thin ring - also using simplified circles
-        glPushMatrix()
-        glRotatef(98, 0, 0, 1)  # Extreme axial tilt
-        glRotatef(90, 1, 0, 0)
-        draw_concentric_circles(radius * 1.2, radius * 1.4, 8, 48, (0.5, 0.5, 0.6))
-        glPopMatrix()
-    
-    elif planet_idx == 8:  # Neptune - add bands and dark spot
-        # Neptunian bands (subtle)
-        for b in range(5):
-            band_radius = radius * (1.0 + 0.01 * (b / 5.0))
-            # Subtle blue variations
-            if b % 2 == 0:
-                glColor3f(0.3, 0.5, 0.9)
-            else:
-                glColor3f(0.4, 0.6, 0.8)
+            # Neptune has very faint rings
+            shade = 0.2
+            glColor3f(shade, shade, shade)
             
-            glPushMatrix()
-            glRotatef(90, 1, 0, 0)
-            bottom = -radius * (0.5 - b/5)
-            top = -radius * (0.5 - (b+1)/5)
-            height = top - bottom
-            gluCylinder(gluNewQuadric(), band_radius, band_radius, height, 32, 1)
-            glPopMatrix()
-        
-        # Neptune's Great Dark Spot
-        glPushMatrix()
-        glRotatef(20, 0, 1, 0)
-        glTranslatef(radius*0.97, 0, 0)
-        glColor3f(0.1, 0.2, 0.5)
-        gluSphere(gluNewQuadric(), radius*0.15, 16, 16)
-        glPopMatrix()
+            glBegin(GL_LINE_LOOP)
+            segments = 40
+            for j in range(segments):
+                angle = 2.0 * math.pi * j / segments
+                x = r * math.cos(angle)
+                y = r * math.sin(angle)
+                glVertex3f(x, y, 0)
+            glEnd()
     
     glPopMatrix()
 
-def draw_ring_crosslines(inner_radius, outer_radius, num_lines):
-    """
-    Draw radial lines to add more detail to rings
-    """
-    glColor3f(0.7, 0.65, 0.55)
-    glBegin(GL_LINES)
+# Next, let's fix the draw_planet_system function that's causing the stack underflow error
+def draw_planet_system(planet_idx, orbit_angle, rotation_angle):
+    radius = planet_data[planet_idx][0]
+    distance = planet_data[planet_idx][1]
+    axial_tilt = planet_data[planet_idx][4]
     
-    for i in range(num_lines):
-        angle = 2.0 * math.pi * i / num_lines
-        cos_angle = math.cos(angle)
-        sin_angle = math.sin(angle)
-        
-        glVertex3f(inner_radius * cos_angle, inner_radius * sin_angle, 0)
-        glVertex3f(outer_radius * cos_angle, outer_radius * sin_angle, 0)
+    # Push matrix to save state before modifying for this planet system
+    glPushMatrix()
     
-    glEnd()
-
-def add_surface_features(radius, positions, size_factor, color):
-    """Add surface features like craters, continents, etc."""
-    glColor3fv(color)
+    # Position the planet in its orbit
+    glRotatef(orbit_angle, 0, 0, 1)
+    glTranslatef(distance, 0, 0)
     
-    for lat, lon in positions:
-        glPushMatrix()
-        glRotatef(lon, 0, 0, 1)    # Longitude
-        glRotatef(lat, 0, 1, 0)    # Latitude
-        glTranslatef(radius * 0.98, 0, 0)  # Slightly above surface
-        
-        # Random variation in feature size
-        feature_size = radius * size_factor * (0.8 + (lat % 3) * 0.1)
-        gluSphere(gluNewQuadric(), feature_size, 12, 12)
-        glPopMatrix()
-
-def add_cloud_layers(radius, layers, color):
-    """Add cloud-like layers to a planet (e.g., Venus)"""
-    glColor3fv(color)
+    # Draw the planet itself if it's not the sun (which is handled separately)
+    if planet_idx > 0:
+        draw_planet(planet_idx, radius, rotation_angle, axial_tilt)
     
-    for i in range(layers):
-        layer_radius = radius * (1.0 + 0.02 * i)
-        
-        # Different pattern for each layer
-        offset_x = math.sin(i * 0.7) * 0.1
-        offset_y = math.cos(i * 1.3) * 0.1
-        
-        glPushMatrix()
-        glTranslatef(radius * offset_x, radius * offset_y, 0)
-        gluSphere(gluNewQuadric(), layer_radius, 16, 16)
-        glPopMatrix()
+    # Selection indicator
+    if selected_planet == planet_idx and not follow_mode:
+        glColor3f(1, 1, 1)
+        glBegin(GL_LINE_LOOP)
+        for i in range(36):
+            angle = math.radians(i * 10)
+            x = (radius + 20) * math.cos(angle)
+            y = (radius + 20) * math.sin(angle)
+            glVertex3f(x, y, 0)
+        glEnd()
+    
+    # Draw moons
+    for i, moon in enumerate(moon_data):
+        if moon[0] == planet_idx:
+            # Push matrix to save planet position before modifying for moon
+            glPushMatrix()
+            
+            # Position the moon in its orbit around the planet
+            glRotatef(moon_orbit_angles[i], 0, 0, 1)
+            glTranslatef(moon[2], 0, 0)
+            
+            # Draw the moon
+            glColor3fv(moon[5])
+            glRotatef(moon_rotation_angles[i], 0, 0, 1)
+            gluSphere(gluNewQuadric(), moon[1], 10, 10)
+            
+            # Restore matrix to planet position
+            glPopMatrix()
+    
+    # Restore matrix to solar system origin
+    glPopMatrix()
 
 def draw_sun():
     glColor3fv(planet_data[0][5])
@@ -533,12 +299,31 @@ def draw_comet():
     glPopMatrix()
 
 def draw_rogue_asteroid():
-    if not collision_mode: return
-    glPushMatrix()
-    glTranslatef(rogue_asteroid_position[0], rogue_asteroid_position[1], 0)
-    glColor3f(0.5, 0.3, 0.3)
-    gluSphere(gluNewQuadric(), rogue_asteroid_size, 10, 10)
-    glPopMatrix()
+    global simulation_time
+    if collision_mode and not collision_happened:
+        glColor3f(0.5, 0.3, 0.3)
+        glPushMatrix()
+        glTranslatef(rogue_asteroid_position[0],
+                     rogue_asteroid_position[1], 0)
+        draw_sphere(rogue_asteroid_size, 12, 12)
+        glPopMatrix()
+
+    elif collision_happened:
+        
+        survivors = []
+        for x, y, z, vx, vy, vz, birth in explosion_particles:
+            t = simulation_time - birth  # Calculate age directly
+            if t < 1.0:
+                px = x + vx * t
+                py = y + vy * t
+                glColor3f(1.0, 0.0, 0.0)
+                glPushMatrix()
+                glTranslatef(px, py, 0)
+                draw_sphere(rogue_asteroid_size * 0.1, 8, 8)
+                glPopMatrix()
+                survivors.append((x, y, z, vx, vy, vz, birth))
+        explosion_particles[:] = survivors
+
 
 def draw_planet_system(planet_idx, orbit_angle, rotation_angle):
     radius = planet_data[planet_idx][0]
@@ -580,23 +365,25 @@ def draw_solar_system():
     draw_trails()
     draw_sun()
     draw_comet()
+
+    # draw asteroids belt
     if not inner_planets_only:
         glColor3f(0.3,0.3,0.3)
-        # Sort asteroids by their distance in descending order
         for asteroid in sorted(asteroid_data, key=lambda a: -a[1]):
             glPushMatrix()
-            glRotatef(asteroid[0] * 180/math.pi, 0, 0, 1)
+            glRotatef(asteroid[0] * 180.0/math.pi, 0, 0, 1)
             glTranslatef(asteroid[1], 0, 0)
             gluSphere(gluNewQuadric(), asteroid[2], 4, 4)
             glPopMatrix()
-    
-    # Draw planets from outermost to innermost
+
+    # draw planets (outer → inner)
     end_planet = 4 if inner_planets_only else len(planet_data)
-    for i in range(end_planet - 1, 0, -1):
+    for i in range(end_planet-1, 0, -1):
         draw_planet_system(i, orbit_angles[i], rotation_angles[i])
-    
-    # Draw rogue asteroid last (foreground element)
+
+    # now draw the rogue asteroid or explosion on top
     draw_rogue_asteroid()
+
 
 def draw_planet_label(planet_idx):
     names = ["Sun", "Mercury", "Venus", "Earth", "Mars", 
@@ -641,9 +428,11 @@ def setupCamera():
         gluLookAt(cam_x, cam_y, cam_z, 0, 0, 0, 0, 0, 1)
 
 def update_simulation():
-    global comet_orbit_angle, collision_happened, collision_time, explosion_particles, rogue_asteroid_position
+    global comet_orbit_angle, collision_happened, collision_time, explosion_particles, rogue_asteroid_position,simulation_time
     
     if paused: return
+    else:
+        simulation_time += 0.016 * time_scale  # Approximate 60 FPS delta time
     
     # Update angles
     for i in range(1, len(planet_data)):
@@ -665,13 +454,43 @@ def update_simulation():
     comet_orbit_angle = (comet_orbit_angle + 0.005 * comet_speed * (comet_orbit_radius_max/r)**2 * time_scale) % (2*math.pi)
     
     # Update collision
+        # move rogue asteroid & test for hit
     if collision_mode and not collision_happened:
+        # Update asteroid position
         rogue_asteroid_position[0] += rogue_asteroid_velocity[0] * time_scale
-        dx = rogue_asteroid_position[0] - planet_data[collision_target][1] * math.cos(math.radians(orbit_angles[collision_target]))
-        dy = rogue_asteroid_position[1] - planet_data[collision_target][1] * math.sin(math.radians(orbit_angles[collision_target]))
-        if math.sqrt(dx*dx + dy*dy) < planet_data[collision_target][0] + rogue_asteroid_size:
-            collision_happened = True
-            collision_time = glutGet(GLUT_ELAPSED_TIME)
+        rogue_asteroid_position[1] += rogue_asteroid_velocity[1] * time_scale
+
+        # Check collision with ALL planets (except Sun)
+        for i in range(0, len(planet_data)):
+            planet = planet_data[i]
+            ang = math.radians(orbit_angles[i])
+            px = planet[1] * math.cos(ang)
+            py = planet[1] * math.sin(ang)
+            distance = math.hypot(
+                rogue_asteroid_position[0] - px,
+                rogue_asteroid_position[1] - py
+            )
+            
+            if distance < planet[0] + rogue_asteroid_size:
+                collision_happened = True
+                collision_time = simulation_time                
+                
+                # Create red explosion particles
+                explosion_particles.clear()
+                for _ in range(20):
+                    θ = random.random() * 2 * math.pi
+                    speed = random.uniform(50, 150)
+                    explosion_particles.append((
+                        px, py, 0,
+                        math.cos(θ)*speed, 
+                        math.sin(θ)*speed,
+                        0,
+                        simulation_time
+                    ))
+                break  # Stop after first collision
+
+
+
 
 def reset_simulation():
     global orbit_angles, rotation_angles, moon_orbit_angles, moon_rotation_angles
@@ -688,15 +507,20 @@ def reset_simulation():
     rogue_asteroid_position = [-3000, 0, 0]
 
 def keyboardListener(key, x, y):
-    global paused, time_scale, selected_planet, follow_mode, show_trails, inner_planets_only, collision_mode, camera_distance
+    global paused, time_scale, selected_planet, follow_mode, show_trails, inner_planets_only, collision_mode, camera_distance, collision_happened, rogue_asteroid_position, rogue_asteroid_velocity
     
     if key == b'p': paused = not paused
     if key == b'r': reset_simulation()
     if key == b'f': follow_mode = not follow_mode
     if key == b'o': show_trails = not show_trails
     if key == b'i': inner_planets_only = not inner_planets_only
-    if key == b'c': collision_mode = not collision_mode
-    
+    if key == b'c':
+       # Reset asteroid to initial state
+        collision_mode = True
+        collision_happened = False
+        explosion_particles.clear()
+        rogue_asteroid_position = [-3000, 0, 0]  # Start at left
+        rogue_asteroid_velocity = [15, 0, 0]
     if key >= b'1' and key <= b'9':
         selected_planet = min(int(key)-int(b'1'), len(planet_data)-1)
     # Fixed time scale controls
@@ -739,7 +563,6 @@ def showScreen():
     setupCamera()
     draw_solar_system()
     draw_planet_label(selected_planet)
-    draw_planet_info(selected_planet)  
     draw_simulation_controls()
     glutSwapBuffers()
 
