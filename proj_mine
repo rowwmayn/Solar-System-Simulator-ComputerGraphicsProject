@@ -124,35 +124,253 @@ def draw_trails():
 def draw_sphere(radius, slices, stacks):
     gluSphere(gluNewQuadric(), radius, slices, stacks)
 
+def draw_circle(radius, segments, r, g, b):
+    """
+    Draw a circle using GL_LINE_LOOP
+    """
+    glColor3f(r, g, b)
+    glBegin(GL_LINE_LOOP)
+    
+    for i in range(segments):
+        angle = 2.0 * math.pi * i / segments
+        glVertex3f(radius * math.cos(angle), radius * math.sin(angle), 0)
+    
+    glEnd()
+
+def draw_concentric_circles(inner_radius, outer_radius, num_circles, segments, base_color):
+    """
+    Draw multiple concentric circles to represent a disk or ring
+    """
+    r_base, g_base, b_base = base_color
+    
+    # Draw multiple circles
+    for i in range(num_circles):
+        t = i / (num_circles - 1)  # 0 to 1
+        radius = inner_radius + t * (outer_radius - inner_radius)
+        
+        # Slight color variation
+        if i % 3 == 0:
+            r, g, b = r_base * 1.1, g_base * 1.1, b_base * 1.1
+        elif i % 3 == 1:
+            r, g, b = r_base, g_base, b_base
+        else:
+            r, g, b = r_base * 0.9, g_base * 0.9, b_base * 0.9
+            
+        draw_circle(radius, segments, r, g, b)
+
 def draw_planet(planet_idx, radius, rotation_angle, axial_tilt):
     glPushMatrix()
     glRotatef(axial_tilt, 0, 1, 0)
     glRotatef(rotation_angle, 0, 0, 1)
+    
+    # Base planet sphere
     glColor3fv(planet_data[planet_idx][5])
     gluSphere(gluNewQuadric(), radius, 32, 32)
     
-    # Gas giant bands (Jupiter/Saturn)
-    if planet_idx in (5, 6):
-        bands = 6 if planet_idx == 5 else 4
-        for b in range(bands):
-            band_radius = radius * (1.0 + 0.02 * ((b + 1) / float(bands + 1)))
-            base = planet_data[planet_idx][5]
-            shade = 0.8 if (b % 2 == 0) else 1.0
-            glColor3f(min(base[0]*shade,1), min(base[1]*shade,1), min(base[2]*shade,1))
-            gluSphere(gluNewQuadric(), band_radius, 32, 32)
+    # Add surface features based on planet type
+    if planet_idx == 1:  # Mercury - add craters
+        add_surface_features(radius, [(45, 20), (-30, 80), (10, 150), (60, 270)], 0.15, (0.7, 0.55, 0.55))
     
-    # # Surface features
-    # if planet_idx == 1:  # Mercury craters
-    #     for (lat, lon), color in [((20,10),(0.5,0.5,0.5)), ((-25,130),(0.4,0.4,0.4))]:
-    #         glPushMatrix()
-    #         glRotatef(lon, 0, 0, 1)
-    #         glRotatef(lat, 0, 1, 0)
-    #         glTranslatef(radius, 0, 0)
-    #         glColor3fv(color)
-    #         gluSphere(gluNewQuadric(), radius*0.1, 12, 12)
-    #         glPopMatrix()
+    elif planet_idx == 2:  # Venus - add cloud swirls
+        add_cloud_layers(radius, 3, (1.0, 1.0, 0.8))
+    
+    elif planet_idx == 3:  # Earth - add continents and polar caps
+        # Add polar caps
+        glPushMatrix()
+        glRotatef(90, 1, 0, 0)  # North pole
+        glColor3f(0.9, 0.95, 1.0)
+        gluDisk(gluNewQuadric(), 0, radius * 0.2, 16, 1)
+        glPopMatrix()
+        
+        glPushMatrix()
+        glRotatef(-90, 1, 0, 0)  # South pole
+        glColor3f(0.9, 0.95, 1.0)
+        gluDisk(gluNewQuadric(), 0, radius * 0.25, 16, 1)
+        glPopMatrix()
+        
+        # Add continent-like features
+        add_surface_features(radius, [(10, 30), (-20, 150), (40, 270)], 0.4, (0.2, 0.7, 0.2))
+    
+    elif planet_idx == 4:  # Mars - add dark regions and polar caps
+        # Add polar cap
+        glPushMatrix()
+        glRotatef(90, 1, 0, 0)
+        glColor3f(0.9, 0.9, 0.9)
+        gluDisk(gluNewQuadric(), 0, radius * 0.15, 16, 1)
+        glPopMatrix()
+        
+        # Dark surface features
+        add_surface_features(radius, [(30, 45), (-25, 160), (15, 270)], 0.5, (0.6, 0.25, 0.2))
+    
+    elif planet_idx == 5:  # Jupiter - add colored bands
+        # Jupiter's iconic bands
+        bands = 8
+        for b in range(bands):
+            offset = radius * 0.02  # Slight offset for visibility
+            band_radius = radius + offset - (b * offset * 2 / bands)
+            # Alternate between darker and lighter bands
+            if b % 2 == 0:
+                glColor3f(0.95, 0.8, 0.6)
+            else:
+                glColor3f(0.8, 0.7, 0.5)
+            
+            glPushMatrix()
+            # Draw a thin cylinder for each band
+            glRotatef(90, 1, 0, 0)
+            bottom = -radius * (0.5 - b/bands)
+            top = -radius * (0.5 - (b+1)/bands)
+            height = top - bottom
+            gluCylinder(gluNewQuadric(), band_radius, band_radius, height, 32, 1)
+            glPopMatrix()
+        
+        # Add the Great Red Spot
+        glPushMatrix()
+        glRotatef(40, 0, 1, 0)
+        glTranslatef(radius*0.98, 0, 0)
+        glColor3f(0.9, 0.4, 0.3)
+        gluSphere(gluNewQuadric(), radius*0.2, 16, 16)
+        glPopMatrix()
+    
+    elif planet_idx == 6:  # Saturn - add rings
+        # Saturn's bands
+        bands = 6
+        for b in range(bands):
+            offset = radius * 0.01
+            band_radius = radius + offset - (b * offset * 2 / bands)
+            if b % 2 == 0:
+                glColor3f(0.95, 0.9, 0.7)
+            else:
+                glColor3f(0.85, 0.8, 0.6)
+            
+            glPushMatrix()
+            glRotatef(90, 1, 0, 0)
+            bottom = -radius * (0.5 - b/bands)
+            top = -radius * (0.5 - (b+1)/bands)
+            height = top - bottom
+            gluCylinder(gluNewQuadric(), band_radius, band_radius, height, 32, 1)
+            glPopMatrix()
+        
+        # Saturn's iconic rings - using concentric circles instead of gluDisk
+        glPushMatrix()
+        glRotatef(80, 1, 0, 0)  # Tilt the rings
+        
+        # Set line width for the rings
+        glLineWidth(1.0)
+        
+        # Inner ring (darker)
+        draw_concentric_circles(radius * 1.2, radius * 1.8, 20, 64, (0.8, 0.7, 0.5))
+        
+        # Middle ring (brighter)
+        draw_concentric_circles(radius * 1.9, radius * 2.2, 15, 64, (0.9, 0.85, 0.7))
+        
+        # Outer ring (darker)
+        draw_concentric_circles(radius * 2.3, radius * 2.5, 10, 64, (0.75, 0.7, 0.6))
+        
+        # Add some cross lines to create more detail
+        draw_ring_crosslines(radius * 1.2, radius * 2.5, 16)
+        
+        glPopMatrix()
+    
+    elif planet_idx == 7:  # Uranus - add ring and blue-green bands
+        # Uranian bands
+        for b in range(4):
+            band_radius = radius * (1.0 + 0.02 * (b / 4.0))
+            # Subtle color variations
+            if b % 2 == 0:
+                glColor3f(0.5, 0.8, 0.9)
+            else:
+                glColor3f(0.6, 0.7, 0.8)
+            
+            glPushMatrix()
+            glRotatef(90, 1, 0, 0)
+            bottom = -radius * (0.5 - b/4)
+            top = -radius * (0.5 - (b+1)/4)
+            height = top - bottom
+            gluCylinder(gluNewQuadric(), band_radius, band_radius, height, 32, 1)
+            glPopMatrix()
+        
+        # Uranus' thin ring - also using circles
+        glPushMatrix()
+        glRotatef(98, 0, 0, 1)  # Extreme axial tilt
+        glRotatef(90, 1, 0, 0)
+        draw_concentric_circles(radius * 1.2, radius * 1.4, 8, 48, (0.5, 0.5, 0.6))
+        glPopMatrix()
+    
+    elif planet_idx == 8:  # Neptune - add bands and dark spot
+        # Neptunian bands (subtle)
+        for b in range(5):
+            band_radius = radius * (1.0 + 0.01 * (b / 5.0))
+            # Subtle blue variations
+            if b % 2 == 0:
+                glColor3f(0.3, 0.5, 0.9)
+            else:
+                glColor3f(0.4, 0.6, 0.8)
+            
+            glPushMatrix()
+            glRotatef(90, 1, 0, 0)
+            bottom = -radius * (0.5 - b/5)
+            top = -radius * (0.5 - (b+1)/5)
+            height = top - bottom
+            gluCylinder(gluNewQuadric(), band_radius, band_radius, height, 32, 1)
+            glPopMatrix()
+        
+        # Neptune's Great Dark Spot
+        glPushMatrix()
+        glRotatef(20, 0, 1, 0)
+        glTranslatef(radius*0.97, 0, 0)
+        glColor3f(0.1, 0.2, 0.5)
+        gluSphere(gluNewQuadric(), radius*0.15, 16, 16)
+        glPopMatrix()
     
     glPopMatrix()
+
+def draw_ring_crosslines(inner_radius, outer_radius, num_lines):
+    """
+    Draw radial lines to add more detail to rings
+    """
+    glColor3f(0.7, 0.65, 0.55)
+    glBegin(GL_LINES)
+    
+    for i in range(num_lines):
+        angle = 2.0 * math.pi * i / num_lines
+        cos_angle = math.cos(angle)
+        sin_angle = math.sin(angle)
+        
+        glVertex3f(inner_radius * cos_angle, inner_radius * sin_angle, 0)
+        glVertex3f(outer_radius * cos_angle, outer_radius * sin_angle, 0)
+    
+    glEnd()
+
+def add_surface_features(radius, positions, size_factor, color):
+    """Add surface features like craters, continents, etc."""
+    glColor3fv(color)
+    
+    for lat, lon in positions:
+        glPushMatrix()
+        glRotatef(lon, 0, 0, 1)    # Longitude
+        glRotatef(lat, 0, 1, 0)    # Latitude
+        glTranslatef(radius * 0.98, 0, 0)  # Slightly above surface
+        
+        # Random variation in feature size
+        feature_size = radius * size_factor * (0.8 + (lat % 3) * 0.1)
+        gluSphere(gluNewQuadric(), feature_size, 12, 12)
+        glPopMatrix()
+
+def add_cloud_layers(radius, layers, color):
+    """Add cloud-like layers to a planet (e.g., Venus)"""
+    glColor3fv(color)
+    
+    for i in range(layers):
+        layer_radius = radius * (1.0 + 0.02 * i)
+        
+        # Different pattern for each layer
+        offset_x = math.sin(i * 0.7) * 0.1
+        offset_y = math.cos(i * 1.3) * 0.1
+        
+        glPushMatrix()
+        glTranslatef(radius * offset_x, radius * offset_y, 0)
+        gluSphere(gluNewQuadric(), layer_radius, 16, 16)
+        glPopMatrix()
 
 def draw_sun():
     glColor3fv(planet_data[0][5])
