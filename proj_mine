@@ -228,7 +228,7 @@ def draw_solar_system():
     draw_sun()
     draw_comet()
     if not inner_planets_only:
-        glColor3f(0.6, 0.6, 0.6)
+        glColor3f(0.3,0.3,0.3)
         # Sort asteroids by their distance in descending order
         for asteroid in sorted(asteroid_data, key=lambda a: -a[1]):
             glPushMatrix()
@@ -288,7 +288,7 @@ def setupCamera():
         gluLookAt(cam_x, cam_y, cam_z, 0, 0, 0, 0, 0, 1)
 
 def update_simulation():
-    global comet_orbit_angle, collision_happened, collision_time
+    global comet_orbit_angle, collision_happened, collision_time, explosion_particles, rogue_asteroid_position
     
     if paused: return
     
