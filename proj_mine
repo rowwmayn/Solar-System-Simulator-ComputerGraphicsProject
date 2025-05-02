@@ -118,14 +118,21 @@ def draw_trails():
     for p in range(start_planet - 1, end_planet - 1):
         r, g, b = planet_data[p + 1][5]
         glColor3f(r * 0.5, g * 0.5, b * 0.5)
-        glBegin(GL_LINE_LOOP)
-        for point in trail_points[p]:
-            glVertex3f(point[0], point[1], 0)
+        
+        # Changed from GL_LINE_LOOP to GL_LINES
+        glBegin(GL_LINES)
+        points = trail_points[p]
+        for i in range(len(points)):
+            glVertex3f(points[i][0], points[i][1], 0)
+            glVertex3f(points[(i + 1) % len(points)][0], points[(i + 1) % len(points)][1], 0)
         glEnd()
 
 def draw_sphere(radius, slices, stacks):
     gluSphere(gluNewQuadric(), radius, slices, stacks)
 # First, let's fix the draw_planet function to properly handle matrix operations
+# This is the modified section for planet disks
+# We'll improve the disk/ring drawing code for Saturn, Uranus, and Neptune
+
 def draw_planet(planet_idx, radius, rotation_angle, axial_tilt):
     glPushMatrix()
     glRotatef(axial_tilt, 0, 1, 0)
@@ -147,7 +154,10 @@ def draw_planet(planet_idx, radius, rotation_angle, axial_tilt):
     if planet_idx == 6:  # Saturn
         inner_radius = radius * 1.3
         outer_radius = radius * 2.2
-        ring_count = 15
+        ring_count = 20
+        
+        # Flatten the rings but keep in place
+        glPushMatrix()
         
         # Draw a series of concentric circles for the rings
         for i in range(ring_count):
@@ -158,22 +168,49 @@ def draw_planet(planet_idx, radius, rotation_angle, axial_tilt):
             base = planet_data[planet_idx][5]
             glColor3f(min(base[0]*shade, 1), min(base[1]*shade, 1), min(base[2]*shade, 1))
             
-            # Draw ring as a circle of line segments
-            glBegin(GL_LINE_LOOP)
-            segments = 50
+            # Draw ring as a circle of points
+            glBegin(GL_POINTS)
+            segments = 100
             for j in range(segments):
                 angle = 2.0 * math.pi * j / segments
                 x = r * math.cos(angle)
                 y = r * math.sin(angle)
-                # Flatten the ring on the x-y plane
                 glVertex3f(x, y, 0)
             glEnd()
+            
+            # Draw a circle using GL_LINES instead of GL_LINE_LOOP
+            glBegin(GL_LINES)
+            for j in range(segments):
+                angle1 = 2.0 * math.pi * j / segments
+                angle2 = 2.0 * math.pi * ((j + 1) % segments) / segments
+                x1 = r * math.cos(angle1)
+                y1 = r * math.sin(angle1)
+                x2 = r * math.cos(angle2)
+                y2 = r * math.sin(angle2)
+                glVertex3f(x1, y1, 0)
+                glVertex3f(x2, y2, 0)
+            glEnd()
+        
+        # Add cross lines to create a grid effect in rings
+        glBegin(GL_LINES)
+        cross_lines = 16
+        for i in range(cross_lines):
+            angle = math.pi * i / cross_lines
+            x_inner = inner_radius * math.cos(angle)
+            y_inner = inner_radius * math.sin(angle)
+            x_outer = outer_radius * math.cos(angle)
+            y_outer = outer_radius * math.sin(angle)
+            glVertex3f(x_inner, y_inner, 0)
+            glVertex3f(x_outer, y_outer, 0)
+        glEnd()
+        
+        glPopMatrix()
     
     # Add rings for Uranus (tilted)
     if planet_idx == 7:  # Uranus
         inner_radius = radius * 1.2
         outer_radius = radius * 1.8
-        ring_count = 8
+        ring_count = 10
         
         # Save the current matrix state before additional rotation
         glPushMatrix()
@@ -188,13 +225,27 @@ def draw_planet(planet_idx, radius, rotation_angle, axial_tilt):
             shade = 0.3 + 0.1 * (i % 3)
             glColor3f(shade, shade, shade)
             
-            glBegin(GL_LINE_LOOP)
-            segments = 40
+            # Draw points for ring texture
+            glBegin(GL_POINTS)
+            segments = 80
             for j in range(segments):
                 angle = 2.0 * math.pi * j / segments
                 x = r * math.cos(angle)
                 y = r * math.sin(angle)
                 glVertex3f(x, y, 0)
+            glEnd()
+            
+            # Draw basic ring outline using GL_LINES instead of GL_LINE_LOOP
+            glBegin(GL_LINES)
+            for j in range(segments):
+                angle1 = 2.0 * math.pi * j / segments
+                angle2 = 2.0 * math.pi * ((j + 1) % segments) / segments
+                x1 = r * math.cos(angle1)
+                y1 = r * math.sin(angle1)
+                x2 = r * math.cos(angle2)
+                y2 = r * math.sin(angle2)
+                glVertex3f(x1, y1, 0)
+                glVertex3f(x2, y2, 0)
             glEnd()
         
         # Restore matrix state after drawing rings
@@ -204,7 +255,11 @@ def draw_planet(planet_idx, radius, rotation_angle, axial_tilt):
     if planet_idx == 8:  # Neptune
         inner_radius = radius * 1.1
         outer_radius = radius * 1.5
-        ring_count = 5
+        ring_count = 7
+        
+        # The rings of Neptune are not as tilted as Uranus
+        glPushMatrix()
+        glRotatef(30, 1, 0, 0)  # Slight tilt
         
         for i in range(ring_count):
             r = inner_radius + (outer_radius - inner_radius) * i / (ring_count - 1)
@@ -213,17 +268,50 @@ def draw_planet(planet_idx, radius, rotation_angle, axial_tilt):
             shade = 0.2
             glColor3f(shade, shade, shade)
             
-            glBegin(GL_LINE_LOOP)
-            segments = 40
+            # Draw the ring with points and line loop
+            glBegin(GL_POINTS)
+            segments = 60
             for j in range(segments):
                 angle = 2.0 * math.pi * j / segments
                 x = r * math.cos(angle)
                 y = r * math.sin(angle)
-                glVertex3f(x, y, 0)
+                if i == 0 or i == ring_count-1 or j % 3 == 0:  # Sparser points for interior rings
+                    glVertex3f(x, y, 0)
             glEnd()
+            
+            # Only draw outline for main rings
+            if i == 0 or i == ring_count-1 or i == ring_count//2:
+                glBegin(GL_LINES)
+                for j in range(segments):
+                    angle1 = 2.0 * math.pi * j / segments
+                    angle2 = 2.0 * math.pi * ((j + 1) % segments) / segments
+                    x1 = r * math.cos(angle1)
+                    y1 = r * math.sin(angle1)
+                    x2 = r * math.cos(angle2)
+                    y2 = r * math.sin(angle2)
+                    glVertex3f(x1, y1, 0)
+                    glVertex3f(x2, y2, 0)
+                glEnd()
+        
+        # Add a few arcs to represent Neptune's incomplete rings
+        glBegin(GL_LINES)
+        for i in range(5):
+            r = inner_radius + (outer_radius - inner_radius) * (0.3 + 0.5 * (i / 5.0))
+            start_angle = math.pi * 0.2 * i
+            for j in range(20):
+                angle1 = start_angle + j * 0.05
+                angle2 = angle1 + 0.05
+                x1 = r * math.cos(angle1)
+                y1 = r * math.sin(angle1)
+                x2 = r * math.cos(angle2)
+                y2 = r * math.sin(angle2)
+                glVertex3f(x1, y1, 0)
+                glVertex3f(x2, y2, 0)
+        glEnd()
+        
+        glPopMatrix()
     
     glPopMatrix()
-
 # Next, let's fix the draw_planet_system function that's causing the stack underflow error
 def draw_planet_system(planet_idx, orbit_angle, rotation_angle):
     radius = planet_data[planet_idx][0]
@@ -244,12 +332,17 @@ def draw_planet_system(planet_idx, orbit_angle, rotation_angle):
     # Selection indicator
     if selected_planet == planet_idx and not follow_mode:
         glColor3f(1, 1, 1)
-        glBegin(GL_LINE_LOOP)
+        # Changed from GL_LINE_LOOP to GL_LINES
+        glBegin(GL_LINES)
         for i in range(36):
-            angle = math.radians(i * 10)
-            x = (radius + 20) * math.cos(angle)
-            y = (radius + 20) * math.sin(angle)
-            glVertex3f(x, y, 0)
+            angle1 = math.radians(i * 10)
+            angle2 = math.radians(((i + 1) % 36) * 10)
+            x1 = (radius + 20) * math.cos(angle1)
+            y1 = (radius + 20) * math.sin(angle1)
+            x2 = (radius + 20) * math.cos(angle2)
+            y2 = (radius + 20) * math.sin(angle2)
+            glVertex3f(x1, y1, 0)
+            glVertex3f(x2, y2, 0)
         glEnd()
     
     # Draw moons
@@ -340,12 +433,17 @@ def draw_planet_system(planet_idx, orbit_angle, rotation_angle):
     # Selection indicator
     if selected_planet == planet_idx and not follow_mode:
         glColor3f(1, 1, 1)
-        glBegin(GL_LINE_LOOP)
+        # Changed from GL_LINE_LOOP to GL_LINES
+        glBegin(GL_LINES)
         for i in range(36):
-            angle = math.radians(i * 10)
-            x = (radius + 20) * math.cos(angle)
-            y = (radius + 20) * math.sin(angle)
-            glVertex3f(x, y, 0)
+            angle1 = math.radians(i * 10)
+            angle2 = math.radians(((i + 1) % 36) * 10)
+            x1 = (radius + 20) * math.cos(angle1)
+            y1 = (radius + 20) * math.sin(angle1)
+            x2 = (radius + 20) * math.cos(angle2)
+            y2 = (radius + 20) * math.sin(angle2)
+            glVertex3f(x1, y1, 0)
+            glVertex3f(x2, y2, 0)
         glEnd()
     
     # Moons
@@ -488,9 +586,6 @@ def update_simulation():
                         simulation_time
                     ))
                 break  # Stop after first collision
-
-
-
 
 def reset_simulation():
     global orbit_angles, rotation_angles, moon_orbit_angles, moon_rotation_angles
