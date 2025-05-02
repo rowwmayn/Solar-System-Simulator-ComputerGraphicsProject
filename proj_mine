@@ -19,6 +19,112 @@ follow_mode = False
 show_trails = True
 inner_planets_only = False
 
+# First, let's add planet facts
+planet_facts = [
+    [  # Sun
+        "The Sun contains 99.86% of the mass in the solar system",
+        "Surface temperature: 5,500°C",
+        "Core temperature: 15 million°C",
+        "Diameter: 1.4 million km (109x Earth)",
+        "The Sun is actually white, not yellow"
+    ],
+    [  # Mercury
+        "Closest planet to the Sun",
+        "Temperature range: -173°C to 427°C",
+        "No atmosphere, no moons",
+        "Day length: 59 Earth days",
+        "Year length: 88 Earth days"
+    ],
+    [  # Venus
+        "Hottest planet (462°C surface)",
+        "Toxic atmosphere of carbon dioxide",
+        "Rotates backwards compared to other planets",
+        "Similar size to Earth (95% of Earth's diameter)",
+        "Day is longer than its year (243 vs 225 Earth days)"
+    ],
+    [  # Earth
+        "Only known planet with liquid water and life",
+        "Atmosphere: 78% nitrogen, 21% oxygen",
+        "Distance from Sun: 149.6 million km",
+        "One moon, 24-hour day",
+        "Magnetic field protects from solar radiation"
+    ],
+    [  # Mars
+        "Known as the Red Planet",
+        "Has the largest volcano in the solar system",
+        "Two small moons: Phobos and Deimos",
+        "Evidence of ancient water flows",
+        "Day length: 24.6 Earth hours"
+    ],
+    [  # Jupiter
+        "Largest planet in our solar system",
+        "More than twice as massive as all other planets combined",
+        "Great Red Spot: storm raging for 400+ years",
+        "Has at least 79 moons",
+        "Day length: 9.93 Earth hours"
+    ],
+    [  # Saturn
+        "Famous for its spectacular ring system",
+        "Least dense planet (would float in water)",
+        "Has 82+ moons including Titan",
+        "Composed mainly of hydrogen and helium",
+        "Winds up to 1,800 km/h at equator"
+    ],
+    [  # Uranus
+        "Rotates on its side (axial tilt of 98°)",
+        "Appears blue-green due to methane",
+        "Coldest planetary atmosphere (-224°C)",
+        "27 known moons",
+        "Takes 84 Earth years to orbit the Sun"
+    ],
+    [  # Neptune
+        "Windiest planet (winds up to 2,100 km/h)",
+        "Discovered by mathematical predictions",
+        "The Great Dark Spot is a storm system",
+        "14 known moons",
+        "Takes 165 Earth years to orbit the Sun"
+    ]
+]
+
+def draw_planet_facts(planet_idx):
+    """Draw educational facts about the selected planet on the right side of the screen"""
+    if 0 <= planet_idx < len(planet_facts):
+        # Draw title
+        names = ["Sun", "Mercury", "Venus", "Earth", "Mars", 
+                "Jupiter", "Saturn", "Uranus", "Neptune"]
+        draw_text(780, 770, f"{names[planet_idx]} Facts", GLUT_BITMAP_HELVETICA_18)
+        
+        # Draw background panel
+        glMatrixMode(GL_PROJECTION)
+        glPushMatrix()
+        glLoadIdentity()
+        gluOrtho2D(0, 1000, 0, 800)
+        glMatrixMode(GL_MODELVIEW)
+        glPushMatrix()
+        glLoadIdentity()
+        
+        # Semi-transparent panel
+        glColor4f(0.1, 0.1, 0.3, 0.7)
+        glBegin(GL_QUADS)
+        glVertex2f(750, 750)
+        glVertex2f(990, 750)
+        glVertex2f(990, 600)
+        glVertex2f(750, 600)
+        glEnd()
+        
+        # Restore matrix
+        glPopMatrix()
+        glMatrixMode(GL_PROJECTION)
+        glPopMatrix()
+        glMatrixMode(GL_MODELVIEW)
+        
+        # Draw facts
+        facts = planet_facts[planet_idx]
+        y_pos = 730
+        for fact in facts:
+            draw_text(760, y_pos, "• " + fact, GLUT_BITMAP_HELVETICA_12)
+            y_pos -= 25
+
 # Planet data (your colors and parameters)
 planet_data = [
     [150, 0, 0, 0.2, 0, (1.0, 0.8, 0.0)],  # Sun
@@ -498,6 +604,9 @@ def draw_simulation_controls():
     draw_text(10, 60, "Arrow keys: Rotate camera  |  W/S: Zoom  |  P: Pause  |  R: Reset")
     draw_text(10, 40, "1-9: Select planet  |  F: Follow mode  |  O: Toggle trails  |  +/-: Time scale")
     draw_text(10, 20, "C: Toggle collision demo  |  I: Inner planets only")
+    
+    
+    draw_planet_facts(selected_planet)
 
 def setupCamera():
     glMatrixMode(GL_PROJECTION)
