@@ -1,7 +1,7 @@
 from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
-import math
+import math,random
 
 # Camera variables
 camera_pos = (0, 0, 1500)
@@ -11,6 +11,7 @@ fovY = 60
 GRID_LENGTH = 4000
 
 # Simulation variables
+simulation_time = 0.0  # Tracks total elapsed time in secon
 paused = False
 time_scale = 1.0
 selected_planet = 0
@@ -58,6 +59,7 @@ rogue_asteroid_size = 30
 collision_happened = False
 collision_time = 0
 collision_target = 3  # Earth by default
+explosion_particles = []   # list of tuples: (x,y,z, vx,vy,vz, birth_time)
 
 # Animation state
 trail_segments = 100
@@ -180,12 +182,31 @@ def draw_comet():
     glPopMatrix()
 
 def draw_rogue_asteroid():
-    if not collision_mode: return
-    glPushMatrix()
-    glTranslatef(rogue_asteroid_position[0], rogue_asteroid_position[1], 0)
-    glColor3f(0.5, 0.3, 0.3)
-    gluSphere(gluNewQuadric(), rogue_asteroid_size, 10, 10)
-    glPopMatrix()
+    global simulation_time
+    if collision_mode and not collision_happened:
+        glColor3f(0.5, 0.3, 0.3)
+        glPushMatrix()
+        glTranslatef(rogue_asteroid_position[0],
+                     rogue_asteroid_position[1], 0)
+        draw_sphere(rogue_asteroid_size, 12, 12)
+        glPopMatrix()
+
+    elif collision_happened:
+        
+        survivors = []
+        for x, y, z, vx, vy, vz, birth in explosion_particles:
+            t = simulation_time - birth  # Calculate age directly
+            if t < 1.0:
+                px = x + vx * t
+                py = y + vy * t
+                glColor3f(1.0, 0.0, 0.0)
+                glPushMatrix()
+                glTranslatef(px, py, 0)
+                draw_sphere(rogue_asteroid_size * 0.1, 8, 8)
+                glPopMatrix()
+                survivors.append((x, y, z, vx, vy, vz, birth))
+        explosion_particles[:] = survivors
+
 
 def draw_planet_system(planet_idx, orbit_angle, rotation_angle):
     radius = planet_data[planet_idx][0]
@@ -227,23 +248,25 @@ def draw_solar_system():
     draw_trails()
     draw_sun()
     draw_comet()
+
+    # draw asteroids belt
     if not inner_planets_only:
         glColor3f(0.3,0.3,0.3)
-        # Sort asteroids by their distance in descending order
         for asteroid in sorted(asteroid_data, key=lambda a: -a[1]):
             glPushMatrix()
-            glRotatef(asteroid[0] * 180/math.pi, 0, 0, 1)
+            glRotatef(asteroid[0] * 180.0/math.pi, 0, 0, 1)
             glTranslatef(asteroid[1], 0, 0)
             gluSphere(gluNewQuadric(), asteroid[2], 4, 4)
             glPopMatrix()
-    
-    # Draw planets from outermost to innermost
+
+    # draw planets (outer → inner)
     end_planet = 4 if inner_planets_only else len(planet_data)
-    for i in range(end_planet - 1, 0, -1):
+    for i in range(end_planet-1, 0, -1):
         draw_planet_system(i, orbit_angles[i], rotation_angles[i])
-    
-    # Draw rogue asteroid last (foreground element)
+
+    # now draw the rogue asteroid or explosion on top
     draw_rogue_asteroid()
+
 
 def draw_planet_label(planet_idx):
     names = ["Sun", "Mercury", "Venus", "Earth", "Mars", 
@@ -288,9 +311,11 @@ def setupCamera():
         gluLookAt(cam_x, cam_y, cam_z, 0, 0, 0, 0, 0, 1)
 
 def update_simulation():
-    global comet_orbit_angle, collision_happened, collision_time, explosion_particles, rogue_asteroid_position
+    global comet_orbit_angle, collision_happened, collision_time, explosion_particles, rogue_asteroid_position,simulation_time
     
     if paused: return
+    else:
+        simulation_time += 0.016 * time_scale  # Approximate 60 FPS delta time
     
     # Update angles
     for i in range(1, len(planet_data)):
@@ -312,13 +337,43 @@ def update_simulation():
     comet_orbit_angle = (comet_orbit_angle + 0.005 * comet_speed * (comet_orbit_radius_max/r)**2 * time_scale) % (2*math.pi)
     
     # Update collision
+        # move rogue asteroid & test for hit
     if collision_mode and not collision_happened:
+        # Update asteroid position
         rogue_asteroid_position[0] += rogue_asteroid_velocity[0] * time_scale
-        dx = rogue_asteroid_position[0] - planet_data[collision_target][1] * math.cos(math.radians(orbit_angles[collision_target]))
-        dy = rogue_asteroid_position[1] - planet_data[collision_target][1] * math.sin(math.radians(orbit_angles[collision_target]))
-        if math.sqrt(dx*dx + dy*dy) < planet_data[collision_target][0] + rogue_asteroid_size:
-            collision_happened = True
-            collision_time = glutGet(GLUT_ELAPSED_TIME)
+        rogue_asteroid_position[1] += rogue_asteroid_velocity[1] * time_scale
+
+        # Check collision with ALL planets (except Sun)
+        for i in range(0, len(planet_data)):
+            planet = planet_data[i]
+            ang = math.radians(orbit_angles[i])
+            px = planet[1] * math.cos(ang)
+            py = planet[1] * math.sin(ang)
+            distance = math.hypot(
+                rogue_asteroid_position[0] - px,
+                rogue_asteroid_position[1] - py
+            )
+            
+            if distance < planet[0] + rogue_asteroid_size:
+                collision_happened = True
+                collision_time = simulation_time                
+                
+                # Create red explosion particles
+                explosion_particles.clear()
+                for _ in range(20):
+                    θ = random.random() * 2 * math.pi
+                    speed = random.uniform(50, 150)
+                    explosion_particles.append((
+                        px, py, 0,
+                        math.cos(θ)*speed, 
+                        math.sin(θ)*speed,
+                        0,
+                        simulation_time
+                    ))
+                break  # Stop after first collision
+
+
+
 
 def reset_simulation():
     global orbit_angles, rotation_angles, moon_orbit_angles, moon_rotation_angles
@@ -335,15 +390,20 @@ def reset_simulation():
     rogue_asteroid_position = [-3000, 0, 0]
 
 def keyboardListener(key, x, y):
-    global paused, time_scale, selected_planet, follow_mode, show_trails, inner_planets_only, collision_mode, camera_distance
+    global paused, time_scale, selected_planet, follow_mode, show_trails, inner_planets_only, collision_mode, camera_distance, collision_happened, rogue_asteroid_position, rogue_asteroid_velocity
     
     if key == b'p': paused = not paused
     if key == b'r': reset_simulation()
     if key == b'f': follow_mode = not follow_mode
     if key == b'o': show_trails = not show_trails
     if key == b'i': inner_planets_only = not inner_planets_only
-    if key == b'c': collision_mode = not collision_mode
-    
+    if key == b'c':
+       # Reset asteroid to initial state
+        collision_mode = True
+        collision_happened = False
+        explosion_particles.clear()
+        rogue_asteroid_position = [-3000, 0, 0]  # Start at left
+        rogue_asteroid_velocity = [15, 0, 0]
     if key >= b'1' and key <= b'9':
         selected_planet = min(int(key)-int(b'1'), len(planet_data)-1)
     # Fixed time scale controls
